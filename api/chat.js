@@ -13,15 +13,22 @@ export default async function handler(req, res) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY?.trim()
-  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
+  const message =
+    typeof req.body?.message === 'string'
+      ? req.body.message.trim()
+      : ''
 
   if (!apiKey) {
     console.error('GEMINI_API_KEY is not configured in Vercel.')
-    return res.status(500).json({ error: 'Gemini API key is not configured.' })
+    return res.status(500).json({
+      error: 'Gemini API key is not configured.',
+    })
   }
 
   if (!message) {
-    return res.status(400).json({ error: 'Message is required.' })
+    return res.status(400).json({
+      error: 'Message is required.',
+    })
   }
 
   try {
@@ -29,7 +36,9 @@ export default async function handler(req, res) {
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           contents: [
             {
@@ -38,19 +47,28 @@ export default async function handler(req, res) {
             },
           ],
         }),
-      },
+      }
     )
 
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text()
-      console.error('Gemini API request failed:', geminiResponse.status, errorText.slice(0, 1000))
-      return res.status(502).json({ error: 'Unable to get a response from Gemini.' })
+
+      console.error(
+        'Gemini API request failed:',
+        geminiResponse.status,
+        errorText.slice(0, 1000)
+      )
+
+      return res.status(502).json({
+        error: 'Unable to get a response from Gemini.',
+      })
     }
 
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.setHeader('Cache-Control', 'no-cache, no-transform')
     res.setHeader('Connection', 'keep-alive')
+
     res.flushHeaders?.()
 
     if (!geminiResponse.body) {
@@ -59,40 +77,70 @@ export default async function handler(req, res) {
 
     const reader = geminiResponse.body.getReader()
     const decoder = new TextDecoder()
+
     let buffer = ''
+
+    function processEvent(event) {
+      for (const line of event.split('\n')) {
+        if (!line.startsWith('data:')) continue
+
+        const data = line.slice(5).trim()
+
+        if (!data || data === '[DONE]') continue
+
+        try {
+          const parsed = JSON.parse(data)
+
+          const text =
+            parsed.candidates?.[0]?.content?.parts
+              ?.map((part) => part.text || '')
+              .join('') || ''
+
+          if (text) {
+            res.write(text)
+          }
+        } catch (error) {
+          console.error('Failed to parse Gemini event:', error)
+        }
+      }
+    }
 
     while (true) {
       const { value, done } = await reader.read()
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+
+      buffer += decoder.decode(
+        value || new Uint8Array(),
+        { stream: !done }
+      )
 
       const events = buffer.split('\n\n')
+
       buffer = events.pop() || ''
 
       for (const event of events) {
-        for (const line of event.split('\n')) {
-          if (!line.startsWith('data:')) continue
-          const data = line.slice(5).trim()
-          if (!data || data === '[DONE]') continue
-
-          try {
-            const parsed = JSON.parse(data)
-            const text = parsed.candidates?.[0]?.content?.parts
-              ?.map((part) => part.text || '')
-              .join('') || ''
-            if (text) res.write(text)
-          } catch {
-            // Ignore malformed/incomplete SSE events and continue streaming.
-          }
-        }
+        processEvent(event)
       }
 
-      if (done) break
+      if (done) {
+        break
+      }
+    }
+
+    // Process the final event left in the buffer.
+    if (buffer.trim()) {
+      processEvent(buffer)
     }
 
     return res.end()
   } catch (error) {
     console.error('Gemini serverless function failed:', error)
-    if (res.headersSent) return res.end()
-    return res.status(500).json({ error: 'Unable to get a response from Gemini.' })
+
+    if (res.headersSent) {
+      return res.end()
+    }
+
+    return res.status(500).json({
+      error: 'Unable to get a response from Gemini.',
+    })
   }
 }

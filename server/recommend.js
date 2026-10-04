@@ -444,12 +444,19 @@ async function omdbRequest(params, config, fetchImpl) {
   } catch {
     throw new RecommendationError('Unable to reach the OMDb movie database. Please try again.', 502)
   }
-  if (!response.ok) throw new RecommendationError(`OMDb request failed (${response.status}).`, 502)
   const data = await response.json().catch(() => null)
+  const providerError = String(data?.Error || '')
+  if (response.status === 401 || /api key/i.test(providerError)) {
+    throw new RecommendationError('The OMDb API key was rejected. Check the Vercel environment variables OMDB_API_KEY or VITE_OMDB_API_KEY, then redeploy.', 401)
+  }
+  if (response.status === 429 || /limit/i.test(providerError)) {
+    throw new RecommendationError('The OMDb daily request limit has been reached. Try again tomorrow.', 429)
+  }
+  if (!response.ok) throw new RecommendationError(`OMDb request failed (${response.status}).`, 502)
   if (!data) throw new RecommendationError('OMDb returned an unreadable response.', 502)
   if (data.Response === 'False') {
     const error = String(data.Error || '')
-    if (/api key/i.test(error)) throw new RecommendationError('The OMDb API key was rejected. Check OMDB_API_KEY / VITE_OMDB_API_KEY.', 500)
+    if (/api key/i.test(error)) throw new RecommendationError('The OMDb API key was rejected. Check the Vercel environment variables OMDB_API_KEY or VITE_OMDB_API_KEY, then redeploy.', 401)
     if (/limit/i.test(error)) throw new RecommendationError('The OMDb daily request limit has been reached. Try again tomorrow.', 429)
     return null
   }

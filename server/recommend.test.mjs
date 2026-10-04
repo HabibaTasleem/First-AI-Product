@@ -25,7 +25,7 @@ const OMDB = {
   'Get Out': { Title: 'Get Out', Year: '2017', Rated: 'R', Runtime: '104 min', Genre: 'Horror, Mystery, Thriller', Plot: 'A visit goes wrong.', Poster: 'http://p/getout.jpg', imdbRating: '7.7', imdbID: 'tt5052448', Type: 'movie' },
 }
 
-function makeFetch({ plans = [], omdb = OMDB, geminiFails = false, failFirstOmdb = false } = {}) {
+function makeFetch({ plans = [], omdb = OMDB, geminiFails = false, failFirstOmdb = false, omdbHttp401 = false } = {}) {
   const calls = { gemini: 0, omdb: 0 }
   let planIndex = 0
   const impl = async (url, init) => {
@@ -42,6 +42,7 @@ function makeFetch({ plans = [], omdb = OMDB, geminiFails = false, failFirstOmdb
     if (href.startsWith('https://www.omdbapi.com/')) {
       calls.omdb += 1
       if (failFirstOmdb && calls.omdb === 1) throw new TypeError('Temporary network failure')
+      if (omdbHttp401) return Response.json({ Response: 'False', Error: 'Invalid API key!' }, { status: 401 })
       const params = new URL(href).searchParams
       const title = params.get('t')
       const hit = omdb[title]
@@ -82,6 +83,17 @@ test('one OMDb network failure does not discard successful recommendation lookup
   assert.ok(body.movies.length > 0)
   assert.ok(body.movies.every((movie) => movie.genres.includes('Comedy') && movie.runtime <= 120 && movie.rating >= 7))
   assert.ok(calls.omdb > 1)
+})
+
+test('OMDb HTTP 401 explains that the deployed API key was rejected', async () => {
+  const { impl } = makeFetch({
+    plans: [{ intent: 'recommend', criteria: crit({ genres: ['Comedy'], count: 1 }), candidates: cand('Unauthorized Test Film') }],
+    omdbHttp401: true,
+  })
+  const { status, body } = await handleRecommendRequest({ message: 'recommend a comedy' }, ENV, impl)
+  assert.equal(status, 401)
+  assert.match(body.error, /OMDb API key was rejected/i)
+  assert.match(body.error, /Vercel environment variables/i)
 })
 
 test('"I only have 90 minutes" keeps only movies up to 90 minutes', async () => {

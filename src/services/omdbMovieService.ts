@@ -34,6 +34,14 @@ export async function searchMovies(query: string): Promise<Movie[]> {
     throw new Error('Unable to connect to the OMDb service. Please try again.')
   }
 
+  if (response.status === 401) {
+    throw new Error('OMDb rejected the API key configured as VITE_OMDB_API_KEY in Vercel. Verify the Production value and redeploy.')
+  }
+
+  if (response.status === 429) {
+    throw new Error('The OMDb daily request limit has been reached. Try again tomorrow.')
+  }
+
   if (!response.ok) {
     throw new Error(`OMDb request failed: ${response.status} ${response.statusText}`)
   }

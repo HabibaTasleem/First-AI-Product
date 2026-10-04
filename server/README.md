@@ -11,7 +11,7 @@ AI Movie Assistant helps movie fans decide what to watch by turning requests suc
 
 ## Repository
 
-- **GitHub repository:**(https://github.com/HabibaTasleem/First-Production-AI-Product.git)
+- **GitHub repository:** [First-AI-Product](https://github.com/HabibaTasleem/First-AI-Product)
 
 ## Setup and Run
 

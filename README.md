@@ -11,7 +11,7 @@ AI Movie Assistant helps movie fans decide what to watch by turning requests suc
 
 ## Repository
 
-- **GitHub:** [HabibaTasleem/AI-Chat-Interface](https://github.com/HabibaTasleem/AI-Chat-Interface)
+- **GitHub:** [First-AI-Product repository](https://github.com/HabibaTasleem/First-AI-Product)
 
 ## Features
 

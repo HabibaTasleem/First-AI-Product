@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Footer from './components/Footer/Footer.tsx'
 import Header from './components/Header.tsx'
 import { useAuth } from './context/AuthContext.tsx'
@@ -14,6 +14,7 @@ import MovieAssistant from './components/MovieAssistant/MovieAssistant.tsx'
 
 function App() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, authLoading, logout } = useAuth()
   const {
     query,
@@ -37,7 +38,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${location.pathname === '/movie-assistant' ? ' app-shell--assistant' : ''}`}>
       <Header
         query={query}
         onQueryChange={setQuery}

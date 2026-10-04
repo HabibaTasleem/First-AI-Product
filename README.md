@@ -1,171 +1,125 @@
-# Movie Application
+# AI Movie Assistant
 
-A React, TypeScript, and Vite movie application with OMDb search, Firebase authentication, protected favourites, and a health-check page.
+## Project Brief
 
-## Live Demo
+AI Movie Assistant helps movie fans decide what to watch by turning requests such as “a comedy under two hours rated 7+” into verified movie recommendations. It is for people who want useful picks based on their time, genre, rating, or a film they already like. I chose this problem because recommendation systems are most useful when they understand natural language but still ground their results in trustworthy movie data.
 
-Add the deployed application URL here after deploying to Vercel or Netlify.
+## Live Application
 
-## Technologies
+- **Production URL:** Not deployed yet. A public deployment is still required before this can be submitted as a live application.
+- **Local preview:** `http://localhost:5173/movie-assistant` after following the setup instructions. This address is only available on the developer's machine.
 
-- React and TypeScript
-- Vite
-- React Router
-- Firebase Authentication
-- Firebase Realtime Database
-- Cloud Firestore
-- OMDb API
-- Tailwind CSS v4 with Vite integration
+## Repository
 
-## Setup
+- **GitHub:** [HabibaTasleem/AI-Chat-Interface](https://github.com/HabibaTasleem/AI-Chat-Interface)
 
-Install dependencies:
+## Features
+
+- Search movies using OMDb data.
+- Create an account, sign in, and save favourite movies with Firebase.
+- Ask for recommendations by genre, runtime, rating, release year, family suitability, or a similar title.
+- Ask supported simple movie questions, such as a film's director, cast, plot, release year, runtime, or genres.
+- Continue to get rule-based recommendations and supported movie facts when Gemini is unavailable.
+- Browse movie details and favourites through the routed React application.
+
+## Architecture
+
+- `src/` contains the React and TypeScript frontend, routes, accessible UI components, auth context, and client services.
+- `src/services/` owns calls to Firebase, OMDb, health, and the recommendation endpoint.
+- `src/pages/` contains route-level views and their models/view models.
+- `server/index.js` runs the local Express API on port 5000 and loads server environment variables.
+- `server/recommend.js` is the shared recommendation engine used by both the local server and Vercel function.
+- `server/recommend.test.mjs` tests parsing, filtering, fallbacks, provider errors, and recommendation behavior without external network calls.
+- `api/recommend.js` exposes the recommendation engine as a Vercel serverless endpoint; `vercel.json` configures its duration and SPA rewrite.
+
+## AI Integration
+
+The assistant uses **Google Gemini**, not Claude. The server sends the request and recent conversation history to Gemini. Its system prompt asks it to return structured JSON containing an intent, recommendation criteria, and candidate movie titles. For ordinary movie questions it can return a short text response.
+
+Gemini is used as a request interpreter and candidate generator, not as the source of truth. The server fetches candidate details from OMDb and applies the user's genre, runtime, rating, year, and family-suitability filters itself. This makes conversational requests flexible while preventing an unverified AI suggestion from being presented as a matching result. When Gemini fails, a rule-based parser handles common recommendation requests; supported movie-fact questions use OMDb.
+
+The runtime system prompt is defined as `SYSTEM_PROMPT` in [`server/recommend.js`](server/recommend.js). It instructs Gemini to produce JSON matching the criteria/candidate schema, use recent history for follow-ups, and leave final filtering to the application.
+
+## Setup and Run
+
+Requirements: Node.js compatible with the installed Vite version, plus API credentials for the services you use.
+
+Install both frontend and backend dependencies from the repository root:
 
 ```bash
-npm install
+npm ci
+npm ci --prefix server
 ```
 
-Create a local environment file from the example:
+Copy `.env.example` to `.env` and `server/.env.example` to `server/.env`. Set the `VITE_OMDB_API_KEY` and Firebase `VITE_*` values in the root `.env`; set `GEMINI_API_KEY` in `server/.env`. Keep the Gemini key server-side and never commit either `.env` file.
 
-```powershell
-Copy-Item .env.example .env
+Run the backend and frontend in separate terminals from the repository root:
+
+```bash
+npm run dev --prefix server
 ```
-
-Add your own OMDb and Firebase values to `.env`, then start the app:
 
 ```bash
 npm run dev
 ```
 
-Never upload `.env`. It is excluded by `.gitignore`. Upload `.env.example` with placeholder values only.
+Open the Vite URL shown in the frontend terminal and select **Movie Assistant**. Vite proxies `/api` requests to `http://localhost:5000`.
 
-## Routes
+## Testing Evidence
 
-- `/` - Home movie search and results
-- `/auth` - Login and account creation
-- `/favourites` - Protected favourite movies page
-- `/favorites` - Protected American-spelling alias
-- `/movies` - Movies placeholder page
-- `/movies/:id` - Movie details placeholder page
-- `/search` - Search placeholder page
-- `/health` - Fetch-backed health-check page
+Run the offline server tests:
 
-## Assignment Documentation
-
-- [AI prompts used during development](AI_PROMPTS.md)
-- [AI assistance and manual improvements](AI_ASSISTANCE.md)
-
-The project keeps the real `.env` file local. Firebase web configuration is supplied through Vite environment variables, and `.env.example` documents the required variable names.
-
-## Submission Checklist
-
-- [ ] Deploy the application to Vercel or Netlify.
-- [ ] Add the required `VITE_*` environment variables in the hosting provider dashboard.
-- [ ] Confirm Firebase Authentication, database rules, and the deployed domain configuration.
-- [ ] Test `/`, `/auth`, `/favourites`, `/movies`, `/movies/:id`, `/search`, and `/health`.
-- [ ] Test the application at 375px and 1280px with no horizontal overflow.
-- [ ] Confirm preview deployments work for pushes or branches.
-- [ ] Confirm `.env` is not tracked or present in Git history.
-- [ ] Replace the Live Demo placeholder above with the deployed URL.
-- [ ] Submit both the GitHub repository URL and the Live Demo URL.
-
-The assignment audit identified Server Components as a framework-dependent requirement. This project uses React with Vite rather than Next.js, so it does not provide Server Components. Confirm with the assessor whether this requirement applies to this Vite assignment.
-
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm test --prefix server
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Latest verified result: **14 tests passed, 0 failed**. The suite mocks Gemini and OMDb, including fallback behavior and an isolated OMDb network failure.
 
-## Development Prompts
+Run the frontend TypeScript check and production build:
 
-The following prompts were used to build and refine this application:
+```bash
+npm run build
+```
 
-1. Shorten every movie card to approximately 30% of the available row width without changing the card width afterward.
-2. Restore the movie cards to their original layout and dimensions.
-3. Shorten the vertical length of every card by approximately 30%, then make it an additional 10% shorter without changing its width.
-4. Implement `src/services/firebaseService.ts` with typed `addFavourite`, `removeFavourite`, and `getFavourites` functions using `imdbID` as the unique identifier. Keep Firebase communication in the service and return readable errors.
-5. Implement `src/pages/Favourites/FavouritesModel.ts` as a wrapper around the Firebase service with `loadFavourites`, `saveFavourite`, and `deleteFavourite`.
-6. Implement `src/pages/Favourites/useFavouritesViewModel.ts` with favourites, loading, and error state; load favourites on mount; and remove movies from local state after deletion.
-7. Implement `src/pages/Favourites/FavouritesView.tsx` with loading, error, empty, mapped `MovieCard`, and remove states using only the view model.
-8. Make the Home page Favourite button save the selected movie to Firebase through the model and view-model layers.
-9. Fix Firebase permission errors by configuring authentication and explaining the required Realtime Database rules and Anonymous Authentication setup.
-10. Keep the Favourite button label as `Favourite`, show saving feedback, and add hover color styling without using a green saved color.
-11. Initialize Firebase Authentication with `getAuth`, Cloud Firestore with `getFirestore`, export `auth` and `db`, read configuration from Vite environment variables, and create `.env.example`.
-12. Create `src/services/authService.ts` with typed registration, login, logout, and auth-state subscription functions using the modular Firebase Authentication SDK.
-13. Create the authentication MVVM files: `AuthModel.ts`, `useAuthViewModel.ts`, and `AuthView.tsx`, initially as typed placeholders.
-14. Implement `AuthModel.ts` with email normalization, credential validation, six-character minimum passwords, and wrappers around `authService`.
-15. Implement `useAuthViewModel.ts` with email, password, mode, loading, and error state; submit handling; mode toggling; readable errors; and password clearing after successful authentication.
-16. Implement `AuthView.tsx` as a controlled login and registration form with validation messages, loading state, submit handling, and an account-mode switch.
-17. Create a global `AuthContext` with `user`, `authLoading`, and `logout`; subscribe through `authService`; unsubscribe on unmount; show an initialization loading state; and wrap the application with `AuthProvider`.
-18. Move authentication context types, including `AuthProviderProps`, into `src/types`.
-19. Add `/auth`, protect `/favourites`, keep Home public, redirect unauthenticated users to `/auth`, redirect authenticated users away from `/auth`, and preserve the Header on every page.
-20. Move unauthenticated Favourite redirect logic into the Home view model.
-21. Add a Header Logout button connected to the global authentication context.
-22. Redirect unauthenticated users who click a Home Favourite button into the protected favourites/authentication flow.
-23. Restyle the login page with a responsive centered panel, styled inputs, error messages, buttons, focus states, and a themed background.
-24. Add clear account switching text: `Already have an account? Login` and a matching create-account prompt.
+Latest verified result: build completed successfully. There are currently no component-level or end-to-end tests, and no coverage report is configured. The server test output is the available test evidence; a browser-flow test should be added for the primary recommendation workflow.
 
-The complete prompt history is available in [AI_PROMPTS.md](AI_PROMPTS.md), including project scaffolding, routing, Tailwind setup, responsive behavior, health checks, security review, and code-quality review.
-## AI Assistance
+## Performance and Accessibility Audit
 
-See the complete explanation in [AI_ASSISTANCE.md](AI_ASSISTANCE.md).
+- **Lighthouse scores:** Not measured yet.
+- **axe/WAVE audit:** Not run yet. WCAG 2.1 AA conformance has not been verified.
+- **Automated accessibility test:** None currently configured.
+- **Bundle note:** The production build reports a JavaScript bundle of approximately 851 kB, above Vite's 500 kB advisory threshold. Code splitting should be evaluated.
+- **Accessibility support currently in the UI:** Native buttons and links, labeled form controls, poster alternative text, visible keyboard-focus styles, and reduced-motion handling.
+- **Concrete manual improvement:** Recommendation posters have descriptive alternative text and interactive controls expose keyboard-focus styling. This is not a substitute for an axe/WAVE or manual WCAG audit; audit-derived fixes remain pending.
 
-AI was used to help design and implement the application structure, including
-Firebase services, authentication, MVVM layers, routing protection, UI
-styling, and error handling. I reviewed and tested the generated code
-throughout the development process.
+## Deployment and Operation
 
-## Manual Improvements and Corrections
+The repository includes a Vercel serverless recommendation endpoint and configuration, but the application has **not been deployed**. No production URL, deployment sign-off, monitoring, or rollback execution is available yet.
 
-After reviewing the AI-generated code, I:
+### Deployment Checklist
 
-- Corrected Firebase authentication and permission configuration issues.
-- Adjusted movie card height while preserving card width.
-- Moved redirect logic into the Home view-model.
-- Moved shared authentication types into `src/types`.
-- Added protected routing for the Favourites page.
-- Added saving feedback and hover states to Favourite buttons.
-- Added and connected the Logout button.
-- Ran TypeScript diagnostics and production builds to verify the application.
+- [ ] Deploy the frontend and API to Vercel or another supported host.
+- [ ] Configure Firebase, OMDb, and Gemini environment variables in the hosting provider.
+- [ ] Verify Firebase auth, database rules, and the production domain.
+- [ ] Test recommendation, simple movie-fact, fallback, sign-in, and favourites flows in production.
+- [ ] Run Lighthouse on desktop and mobile; run axe or WAVE and address findings.
+- [ ] Add a public live URL and confirm secret files are not tracked.
+- **Sign-off:** Pending deployment and audit; not signed off.
 
-The complete development prompt list is available in [AI_PROMPTS.md](AI_PROMPTS.md).
-## Movie Assistant (Gemini)
+### Safe Failure and Rollback
 
-The project now includes the streaming Gemini Movie Assistant reused from the working AI-Chatbot project.
+If Gemini is unavailable, supported recommendation requests fall back to deterministic parsing; supported movie facts can be looked up through OMDb. Recommendation candidates are checked against OMDb before display. An isolated OMDb lookup failure does not discard successful parallel lookups; a total provider outage still returns an error rather than fabricated movie data. The UI displays request errors instead of treating them as recommendations.
 
-### Local development
+No monitoring service is configured. After deploying to Vercel, a basic rollback is to promote the previous successful production deployment from the Vercel Deployments page, or redeploy the last known-good commit from `main`. This is a documented plan, not a tested rollback.
 
-1. Install the movie app dependencies in the project root: `npm install`
-2. Install the assistant backend dependencies: `cd server && npm install`
-3. Make sure `server/.env` contains your `GEMINI_API_KEY` and `PORT=5000`.
-4. Start the backend: `npm run dev` from `server/`.
-5. Start the React app with `npm run dev` from the project root.
-6. Open **Movie Assistant** from the navbar.
+## Known Limitations and Future Improvements
 
-The Vite development server proxies `/api/chat` to the Gemini backend on port 5000. The assistant keeps the original chatbot's streaming responses, loading state, Stop button, error handling, and browser-session conversation behavior.
+- The offline parser and factual question patterns cover common requests, not arbitrary natural-language questions.
+- OMDb quotas, provider availability, and recommendation freshness depend on external services.
+- There are no frontend component or end-to-end tests, no coverage report, and no automated accessibility checks.
+- The app is not deployed, and production monitoring and rollback have not been exercised.
+- Add Playwright flows, axe checks, Lighthouse baselines, bundle splitting, and provider monitoring before calling the project production-ready.
+
+## Reflection
+
+The hardest part was making free-form movie requests reliable. Gemini can interpret intent and suggest titles, but its output cannot be trusted to satisfy a user's exact constraints. Keeping the model in the planning role and validating every result against OMDb made the recommendations more dependable. I would add browser-level tests, accessibility audits, and deployment monitoring earlier, rather than leaving them until portfolio preparation. The most surprising lesson was that the AI works better as a structured planner than as the final decision-maker: deterministic filtering is what makes the result trustworthy.

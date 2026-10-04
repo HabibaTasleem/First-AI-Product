@@ -2,14 +2,20 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import { GoogleGenAI } from '@google/genai'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { handleRecommendRequest } from './recommend.js'
 
-dotenv.config()
+const serverDir = dirname(fileURLToPath(import.meta.url))
+
+// server/.env first (Gemini key), then the project root .env so the OMDb key the
+// frontend already uses (VITE_OMDB_API_KEY) is reused. dotenv never overrides values already set.
+dotenv.config({ path: resolve(serverDir, '.env') })
+dotenv.config({ path: resolve(serverDir, '../.env') })
 
 const app = express()
 const port = process.env.PORT || 5000
 const apiKey = process.env.GEMINI_API_KEY?.trim()
-
-console.log(`Gemini API key loaded: ${Boolean(apiKey)}${apiKey ? ` (${apiKey.length} characters)` : ''}`)
 
 const ai = new GoogleGenAI({
 	apiKey,
@@ -24,6 +30,12 @@ app.get('/', (req, res) => {
 
 app.get('/api/health', (req, res) => {
 	res.json({ success: true })
+})
+
+// Movie recommendations: request -> Gemini understands it -> real OMDb data -> filtered movie cards.
+app.post('/api/recommend', async (req, res) => {
+	const { status, body } = await handleRecommendRequest(req.body, process.env)
+	res.status(status).json(body)
 })
 
 app.post('/api/chat', async (req, res) => {

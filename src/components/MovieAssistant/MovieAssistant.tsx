@@ -1,39 +1,63 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
+import { saveFavourite } from '../../pages/Favourites/FavouritesModel'
+import { criteriaLabels, requestRecommendations } from '../../services/recommendationService'
+import type {
+  HistoryItem,
+  RecommendationCriteria,
+  RecommendedMovie,
+} from '../../types/recommendation'
+import { RecommendationCard } from './RecommendationCard'
 import './MovieAssistant.css'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   stopped?: boolean
+  movies?: RecommendedMovie[]
+  criteria?: RecommendationCriteria | null
 }
 
-// Use Vercel's same-origin serverless function in production.
-// Local Vite development proxies /api to http://localhost:5000.
-const CHAT_API_URL = '/api/chat'
+const EXAMPLE_PROMPTS = [
+  'A comedy under 2 hours with a rating above 7',
+  'Suggest something similar to Interstellar',
+  'I want a family-friendly movie',
+  'I only have 90 minutes. What can I watch?',
+]
+
+const MAX_HISTORY_MESSAGES = 8
 
 export default function MovieAssistant() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const messageListRef = useRef<HTMLDivElement | null>(null)
+  const conversationRef = useRef<HTMLDivElement | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    const messageList = messageListRef.current
-    if (messageList) messageList.scrollTop = messageList.scrollHeight
+    const conversation = conversationRef.current
+    if (conversation) conversation.scrollTop = conversation.scrollHeight
   }, [messages, isLoading])
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const message = input.trim()
+  async function sendMessage(rawMessage: string) {
+    const message = rawMessage.trim()
     if (!message || isLoading) return
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      { role: 'user', content: message },
-      { role: 'assistant', content: '' },
-    ])
+    // Earlier turns give the AI context for follow-ups like "something shorter".
+    const history: HistoryItem[] = messages
+      .filter((chatMessage) => chatMessage.content && !chatMessage.stopped)
+      .slice(-MAX_HISTORY_MESSAGES)
+      .map((chatMessage) => ({
+        role: chatMessage.role,
+        content: chatMessage.content,
+        titles: chatMessage.movies?.map((movie) => movie.Title),
+      }))
+
+    setMessages((currentMessages) => [...currentMessages, { role: 'user', content: message }])
     setInput('')
     setIsLoading(true)
 
@@ -41,54 +65,23 @@ export default function MovieAssistant() {
     abortControllerRef.current = abortController
 
     try {
-      const response = await fetch(CHAT_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
-        signal: abortController.signal,
-      })
+      const result = await requestRecommendations(message, history, abortController.signal)
 
-      if (!response.ok) {
-        let errorMessage = 'The server could not process your message.'
-        try {
-          const data = (await response.json()) as { error?: string }
-          errorMessage = data.error || errorMessage
-        } catch {
-          // Keep the safe fallback when the server does not return JSON.
-        }
-        throw new Error(errorMessage)
-      }
-
-      if (!response.body) throw new Error('The server did not return a response stream.')
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let assistantReply = ''
-
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) {
-          const finalChunk = decoder.decode()
-          if (finalChunk) {
-            assistantReply += finalChunk
-            updateAssistantMessage(assistantReply)
-          }
-          break
-        }
-
-        assistantReply += decoder.decode(value, { stream: true })
-        updateAssistantMessage(assistantReply)
-      }
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          role: 'assistant',
+          content: result.reply,
+          movies: result.movies,
+          criteria: result.criteria,
+        },
+      ])
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        setMessages((currentMessages) => {
-          const updatedMessages = [...currentMessages]
-          const lastMessage = updatedMessages[updatedMessages.length - 1]
-          if (lastMessage?.role === 'assistant') {
-            updatedMessages[updatedMessages.length - 1] = { ...lastMessage, stopped: true }
-          }
-          return updatedMessages
-        })
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          { role: 'assistant', content: 'Search stopped.', stopped: true },
+        ])
         return
       }
 
@@ -97,7 +90,7 @@ export default function MovieAssistant() {
         : 'Something went wrong. Please try again.'
 
       setMessages((currentMessages) => [
-        ...currentMessages.slice(0, -1),
+        ...currentMessages,
         { role: 'assistant', content: errorMessage },
       ])
     } finally {
@@ -106,90 +99,146 @@ export default function MovieAssistant() {
     }
   }
 
-  function updateAssistantMessage(content: string) {
-    setMessages((currentMessages) => {
-      const updatedMessages = [...currentMessages]
-      updatedMessages[updatedMessages.length - 1] = { role: 'assistant', content }
-      return updatedMessages
-    })
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void sendMessage(input)
   }
 
   function handleStop() {
     abortControllerRef.current?.abort()
   }
 
+  async function handleFavourite(movie: RecommendedMovie) {
+    // Same behaviour as the Home page: signed-out users are sent to log in first.
+    if (!user) {
+      navigate('/favourites')
+      return
+    }
+
+    await saveFavourite({
+      Title: movie.Title,
+      Year: movie.Year,
+      imdbID: movie.imdbID,
+      Type: movie.Type,
+      Poster: movie.Poster,
+    })
+  }
+
   return (
     <main className="movie-assistant">
       <section className="movie-assistant__panel" aria-labelledby="movie-assistant-title">
         <header className="movie-assistant__header">
-          <div>
-            <p className="movie-assistant__eyebrow">AI MOVIE ASSISTANT</p>
-            <h1 id="movie-assistant-title">Movie Assistant</h1>
-            <p className="movie-assistant__subtitle">Smart recommendations for your next watch</p>
-          </div>
-          <span className="movie-assistant__status" aria-label="Ready" />
+          <h1 id="movie-assistant-title">Movie Assistant</h1>
         </header>
 
-        <div
-          ref={messageListRef}
-          className="movie-assistant__messages"
-          aria-live="polite"
-          aria-busy={isLoading}
-        >
+        <div className="movie-assistant__workspace">
+          <section className="movie-assistant__examples" aria-label="Try a suggestion">
+            <div className="movie-assistant__examples-inner">
+            <h2 className="movie-assistant__examples-heading">Quick Start</h2>
+            {EXAMPLE_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => void sendMessage(prompt)}
+                disabled={isLoading}
+              >
+                {prompt}
+              </button>
+            ))}
+            </div>
+          </section>
+
+          <div ref={conversationRef} className="movie-assistant__conversation">
+            <div
+              className="movie-assistant__messages"
+              aria-live="polite"
+              aria-busy={isLoading}
+            >
           {messages.length === 0 && (
             <div className="movie-assistant__empty">
+              <p className="movie-assistant__empty-kicker">TONIGHT'S LINEUP</p>
               <p className="movie-assistant__empty-icon" aria-hidden="true">✦</p>
-              <h2>Find your next movie</h2>
-              <p>Ask the assistant for recommendations, actors, genres, or anything about movies.</p>
+              <h2>One great movie night starts here.</h2>
+              <p>
+                A funny classic, an immersive sci-fi story, or an easy family pick. Find a film
+                that fits tonight.
+              </p>
             </div>
           )}
 
-          {messages.map((message, index) => (
-            <article
-              className={`movie-assistant__message ${message.role}`}
-              key={`${message.role}-${index}`}
-            >
-              <div className="movie-assistant__message-label">
-                <span className="movie-assistant__avatar" aria-hidden="true">
-                  {message.role === 'user' ? 'Y' : 'A'}
-                </span>
-                <strong>{message.role === 'user' ? 'You' : 'Assistant'}</strong>
-              </div>
-              <p>{message.content}</p>
-              {message.stopped && <small className="movie-assistant__stopped">Generation stopped</small>}
-            </article>
-          ))}
+          {messages.map((message, index) => {
+            const hasMovies = Boolean(message.movies && message.movies.length > 0)
+            const labels = message.role === 'assistant' ? criteriaLabels(message.criteria ?? null) : []
+
+            return (
+              <article
+                className={`movie-assistant__message ${message.role}${hasMovies ? ' has-movies' : ''}`}
+                key={`${message.role}-${index}`}
+              >
+                <div className="movie-assistant__message-label">
+                  <span className="movie-assistant__avatar" aria-hidden="true">
+                    {message.role === 'user' ? 'Y' : 'A'}
+                  </span>
+                  <strong>{message.role === 'user' ? 'You' : 'Assistant'}</strong>
+                </div>
+                <p>{message.content}</p>
+
+                {labels.length > 0 && (
+                  <ul className="movie-assistant__criteria" aria-label="What I understood">
+                    {labels.map((label) => (
+                      <li key={label}>{label}</li>
+                    ))}
+                  </ul>
+                )}
+
+                {hasMovies && (
+                  <div className="movie-assistant__results">
+                    {message.movies?.map((movie) => (
+                      <RecommendationCard
+                        key={movie.imdbID}
+                        movie={movie}
+                        onFavourite={handleFavourite}
+                      />
+                    ))}
+                  </div>
+                )}
+
+              </article>
+            )
+          })}
 
           {isLoading && (
             <div className="movie-assistant__loading" role="status">
               <span className="movie-assistant__dots" aria-hidden="true"><i /><i /><i /></span>
-              Assistant is thinking...
+              Finding movies that match...
             </div>
           )}
-        </div>
+            </div>
 
-        <form className="movie-assistant__form" onSubmit={handleSubmit}>
-          <label htmlFor="movie-assistant-input">Message Movie Assistant</label>
-          <div className="movie-assistant__input-row">
-            <input
-              id="movie-assistant-input"
-              type="text"
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask about a movie..."
-              disabled={isLoading}
-            />
-            {isLoading ? (
-              <button className="movie-assistant__stop" type="button" onClick={handleStop}>Stop</button>
-            ) : (
-              <button type="submit" disabled={!input.trim()}>
-                Send <span aria-hidden="true">↗</span>
-              </button>
-            )}
+            <form className="movie-assistant__form" onSubmit={handleSubmit}>
+              <label htmlFor="movie-assistant-input">Message Movie Assistant</label>
+              <div className="movie-assistant__input-row">
+                <input
+                  id="movie-assistant-input"
+                  type="text"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  placeholder="e.g. a thriller under 100 minutes rated 7+"
+                  maxLength={500}
+                  disabled={isLoading}
+                />
+                {isLoading ? (
+                  <button className="movie-assistant__stop" type="button" onClick={handleStop}>Stop</button>
+                ) : (
+                  <button type="submit" disabled={!input.trim()}>
+                    Send <span aria-hidden="true">↗</span>
+                  </button>
+                )}
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       </section>
-      <p className="movie-assistant__privacy">Your conversation stays in this browser session.</p>
     </main>
   )
 }

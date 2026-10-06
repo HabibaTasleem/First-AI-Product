@@ -2,20 +2,23 @@
 
 @layer base {
 	:root {
-		--font-family-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+		--font-family-sans: 'Gill Sans', 'Trebuchet MS', sans-serif;
+		--font-family-display: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
 		--spacing-page: clamp(1rem, 4vw, 4rem);
 		--spacing-section: clamp(2rem, 6vw, 5rem);
-		--container-page: 80rem;
-		--radius-card: 0.75rem;
-		--radius-control: 0.375rem;
-		--color-brand-primary: #f43f5e;
-		--color-brand-primary-hover: #be123c;
-		--color-brand-secondary: #71358f;
-		--color-surface: #ffffff;
-		--color-surface-muted: #fff7ed;
-		--color-page: #0b1020;
-		--color-text: #172033;
-		--color-text-muted: #475569;
+		--container-page: 84rem;
+		--radius-card: 0.4rem;
+		--radius-control: 0.3rem;
+		--color-brand-primary: #d45a3d;
+		--color-brand-primary-hover: #ad402b;
+		--color-brand-secondary: #316b67;
+		--color-surface: #fffdf7;
+		--color-surface-muted: #e2ebe2;
+		--color-page: #edf0e8;
+		--color-text: #193532;
+		--color-text-muted: #657570;
+		--color-line: #d2dbd3;
+		--color-accent-soft: #f4e2d8;
 		--breakpoint-mobile: 40rem;
 		--breakpoint-tablet: 48rem;
 		color: var(--color-text);
@@ -42,6 +45,14 @@
 
 	body {
 		min-height: 100vh;
+		background: var(--color-page);
+		color: var(--color-text);
+		font-family: var(--font-family-sans);
+	}
+
+	button,
+	input {
+		font: inherit;
 	}
 }
 
@@ -50,4 +61,9 @@
 	max-width: var(--container-page);
 	padding-inline: var(--spacing-page);
 	width: 100%;
+}
+
+::selection {
+	background: var(--color-brand-secondary);
+	color: var(--color-surface);
 }

@@ -131,10 +131,9 @@ export default function MovieAssistant() {
           <h1 id="movie-assistant-title">Movie Assistant</h1>
         </header>
 
-        <div className="movie-assistant__workspace">
-          <section className="movie-assistant__examples" aria-label="Try a suggestion">
-            <div className="movie-assistant__examples-inner">
-            <h2 className="movie-assistant__examples-heading">Quick Start</h2>
+        <section className="movie-assistant__examples" aria-label="Suggestions">
+          <div className="movie-assistant__examples-inner">
+            <h2 className="movie-assistant__examples-heading">Suggestions</h2>
             {EXAMPLE_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
@@ -145,9 +144,10 @@ export default function MovieAssistant() {
                 {prompt}
               </button>
             ))}
-            </div>
-          </section>
+          </div>
+        </section>
 
+        <div className="movie-assistant__workspace">
           <div ref={conversationRef} className="movie-assistant__conversation">
             <div
               className="movie-assistant__messages"

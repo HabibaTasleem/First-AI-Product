@@ -26,9 +26,9 @@
 }
 
 .footer {
-  background: #09090f;
-  border-top: 1px solid #71358f;
-  color: #cbd5e1;
+  background: var(--color-brand-secondary);
+  border-top: 3px solid var(--color-brand-primary);
+  color: var(--color-surface);
   margin: 0;
   padding: 0.85rem clamp(1rem, 5vw, 5rem);
   text-align: center;
